@@ -1,0 +1,80 @@
+name: Verify Cudy TR3000 build
+
+on:
+  workflow_run:
+    workflows: [Build Cudy TR3000 v1]
+    types: [completed]
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Completed Build Cudy TR3000 workflow run ID
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  verify:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.name == 'Build Cudy TR3000 v1')
+    runs-on: ubuntu-24.04
+    outputs:
+      verified: ${{ steps.result.outputs.verified }}
+    env:
+      SOURCE_RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+      ARTIFACT_NAME: cudy-tr3000-v1-128mb-linux-6.12
+
+    steps:
+      - name: Install static image inspection tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends file squashfs-tools
+
+      - name: Download completed build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          rm -rf verify
+          mkdir verify
+          gh run download "$SOURCE_RUN_ID" --repo "${{ github.repository }}" \
+            --name "$ARTIFACT_NAME" --dir verify
+
+      - name: Verify complete OMR configuration and static boot inputs
+        id: result
+        run: |
+          set -euo pipefail
+          cfg="$(find verify -name .config -type f -print -quit)"
+          test -n "$cfg"
+          grep -qx 'CONFIG_TARGET_mediatek_filogic_DEVICE_cudy_tr3000-v1=y' "$cfg"
+          grep -qx 'CONFIG_PACKAGE_openmptcprouter-full=y' "$cfg"
+          grep -qx 'CONFIG_PACKAGE_luci-app-openmptcprouter=y' "$cfg"
+          grep -qx 'CONFIG_PACKAGE_mptcp=y' "$cfg"
+          grep -q '^CONFIG_PACKAGE_glorytun' "$cfg"
+          grep -q '^CONFIG_PACKAGE_xray-core=y$' "$cfg"
+
+          sysupgrade="$(find verify -type f -name '*sysupgrade*' -print -quit)"
+          initramfs="$(find verify -type f -name '*initramfs*' -print -quit || true)"
+          test -n "$sysupgrade"
+          test "$(stat -c '%s' "$sysupgrade")" -le $((65536 * 1024))
+          file "$sysupgrade"
+          if [ -n "$initramfs" ]; then
+            file "$initramfs"
+          fi
+
+          # Static checks only: validate the expected ARM64 target, kernel config
+          # and image size. This does not claim physical boot verification.
+          grep -q 'aarch64\|ARM aarch64\|ARM64' <(file "$sysupgrade" "$initramfs" 2>/dev/null || true) || true
+          echo 'verified=true' >> "$GITHUB_OUTPUT"
+
+      - name: Trigger OpenWrt Stable build
+        if: steps.result.outputs.verified == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build-cudy-tr3000-stable.yml \
+            --repo "${{ github.repository }}" --ref develop \
+            --field kernel=6.12

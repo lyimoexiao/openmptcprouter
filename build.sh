@@ -113,6 +113,18 @@ if [ "$ONLY_PREPARE" != "yes" ]; then
 			_get_repo feeds/${OMR_KERNEL}/luci ${OMR_OPENWRT_GIT}/openwrt/luci "a3cc0e14419c96ca74578b792d306cba017b9e6d"
 			_get_repo feeds/${OMR_KERNEL}/routing ${OMR_OPENWRT_GIT}/openwrt/routing "c7872431105f69894201dc522b7560e47d1e8ba9"
 		fi
+	elif [ "$OMR_OPENWRT" = "stable" ]; then
+		if [ "$OMR_KERNEL" = "6.6" ]; then
+			stable_version="v24.10.8"
+			stable_branch="openwrt-24.10"
+		else
+			stable_version="v25.12.4"
+			stable_branch="openwrt-25.12"
+		fi
+		_get_repo "$OMR_TARGET/${OMR_KERNEL}/source" ${OMR_OPENWRT_GIT}/openwrt/openwrt "$stable_version"
+		_get_repo feeds/${OMR_KERNEL}/packages ${OMR_OPENWRT_GIT}/openwrt/packages "$stable_branch"
+		_get_repo feeds/${OMR_KERNEL}/luci ${OMR_OPENWRT_GIT}/openwrt/luci "$stable_branch"
+		_get_repo feeds/${OMR_KERNEL}/routing ${OMR_OPENWRT_GIT}/openwrt/routing "$stable_branch"
 	elif [ "$OMR_OPENWRT" = "coolsnowwolfmix" ]; then
 		_get_repo "$OMR_TARGET/${OMR_KERNEL}/source" ${OMR_OPENWRT_GIT}/coolsnowwolf/lede.git "master"
 		_get_repo feeds/${OMR_KERNEL}/packages ${OMR_OPENWRT_GIT}/openwrt/packages "master"

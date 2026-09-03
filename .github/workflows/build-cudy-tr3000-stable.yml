@@ -1,0 +1,63 @@
+name: Build Cudy TR3000 with OpenWrt Stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel:
+        description: Stable OpenWrt kernel baseline
+        required: true
+        default: '6.12'
+        type: choice
+        options: ['6.12', '6.6']
+
+concurrency:
+  group: cudy-tr3000-stable-${{ inputs.kernel }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: TR3000 v1 128MB / OpenWrt Stable / Linux ${{ inputs.kernel }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      OMR_TARGET: cudy_tr3000-v1
+      OMR_KERNEL: ${{ inputs.kernel }}
+      OMR_OPENWRT: stable
+      OMR_HOST: 127.0.0.1
+      OMR_KEEPBIN: yes
+      OMR_IMG: yes
+      OMR_FLOW_OFFLOAD: no
+      DEBIAN_FRONTEND: noninteractive
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ack antlr3 asciidoc autoconf automake autopoint bison \
+            build-essential ccache clang flex gawk gcc-multilib g++-multilib \
+            gettext genisoimage git gperf haveged help2man intltool \
+            libc6-dev-i386 libelf-dev libncurses-dev libssl-dev libtool \
+            llvm lrzsz mkisofs msmtp nano p7zip p7zip-full patch pkgconf \
+            python3 python3-pip python3-setuptools qemu-utils rsync \
+            scons squashfs-tools subversion swig texinfo uglifyjs unzip \
+            upx-ucl xsltproc zlib1g-dev
+      - name: Build complete OMR on OpenWrt Stable
+        run: ./build.sh -j2
+      - name: Validate output
+        run: |
+          set -eu
+          out="${OMR_TARGET}/${OMR_KERNEL}/source/bin/targets/mediatek/filogic"
+          test -n "$(find "$out" -maxdepth 1 -type f \( -name '*sysupgrade*' -o -name '*initramfs*' \) -print -quit)"
+          grep -q '^CONFIG_PACKAGE_openmptcprouter-full=y$' "${OMR_TARGET}/${OMR_KERNEL}/source/.config"
+      - name: Upload Stable firmware
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cudy-tr3000-v1-128mb-openwrt-stable-linux-${{ inputs.kernel }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            cudy_tr3000-v1/${{ inputs.kernel }}/source/bin/targets/mediatek/filogic/**
+            cudy_tr3000-v1/${{ inputs.kernel }}/source/.config
