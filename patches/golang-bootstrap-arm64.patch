@@ -1,0 +1,8 @@
+--- feeds/openmptcprouter/golang/golang-bootstrap/Makefile
++++ feeds/openmptcprouter/golang/golang-bootstrap/Makefile
+@@ -104,6 +104,7 @@ BOOTSTRAP_GO_VALID_OS_ARCH:= \
+   linux/386 \
+   linux/amd64 \
+   linux/arm \
++  linux/arm64 \
+   netbsd/386 \

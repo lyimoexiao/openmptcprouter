@@ -21,8 +21,10 @@ _get_repo() (
 	else
 		git remote add origin "$2"
 	fi
-	git fetch origin -f
-	git fetch origin --tags -f
+	if [ "$OMR_NO_FETCH" != "yes" ]; then
+		git fetch origin -f
+		git fetch origin --tags -f
+	fi
 	git checkout -f "origin/$3" -B "build" 2>/dev/null || git checkout -f "$3" -B "build"
 )
 
@@ -38,6 +40,7 @@ OMR_PACKAGES=${OMR_PACKAGES:-full}
 OMR_ALL_PACKAGES=${OMR_ALL_PACKAGES:-no}
 OMR_TARGET=${OMR_TARGET:-x86_64}
 OMR_TARGET_CONFIG="config-$OMR_TARGET"
+OMR_FLOW_OFFLOAD=${OMR_FLOW_OFFLOAD:-no}
 UPSTREAM=${UPSTREAM:-no}
 #SYSLOG=${SYSLOG:-busybox-syslogd}
 #SYSLOG=${SYSLOG:-syslog-ng}
@@ -75,7 +78,7 @@ elif [ "$OMR_TARGET" = "wrt3200acm" ] || [ "$OMR_TARGET" = "wrt32x" ]; then
 	OMR_REAL_TARGET="arm_cortex-a9_vfpv3-d16"
 elif [ "$OMR_TARGET" = "rpi2" ] || [ "$OMR_TARGET" = "bpi-r1" ] || [ "$OMR_TARGET" = "bpi-r2" ] || [ "$OMR_TARGET" = "rutx" ] || [ "$OMR_TARGET" = "rutx12" ] || [ "$OMR_TARGET" = "rutx50" ] || [ "$OMR_TARGET" = "p2w_r619ac" ]; then
 	OMR_REAL_TARGET="arm_cortex-a7_neon-vfpv4"
-elif [ "$OMR_TARGET" = "rpi3" ] || [ "$OMR_TARGET" = "bpi-r3" ] || [ "$OMR_TARGET" = "bpi-r3-mini" ] || [ "$OMR_TARGET" = "bpi-r4" ] || [ "$OMR_TARGET" = "bpi-r4-poe" ] || [ "$OMR_TARGET" = "bpi-r64" ] || [ "$OMR_TARGET" = "espressobin" ] || [ "$OMR_TARGET" = "z8102ax_128m" ] || [ "$OMR_TARGET" = "z8102ax_64m" ] || [ "$OMR_TARGET" = "z8109ax_128m" ] || [ "$OMR_TARGET" = "bpi-r4" ] || [ "$OMR_TARGET" = "bpi-r4-poe" ] || [ "$OMR_TARGET" = "bpi-r3" ] || [ "$OMR_TARGET" = "bpi-r3-mini" ] || [ "$OMR_TARGET" = "espressobin" ] || [ "$OMR_TARGET" = "gl-mt2500" ] || [ "$OMR_TARGET" = "gl-mt6000" ]; then
+elif [ "$OMR_TARGET" = "rpi3" ] || [ "$OMR_TARGET" = "bpi-r3" ] || [ "$OMR_TARGET" = "bpi-r3-mini" ] || [ "$OMR_TARGET" = "bpi-r4" ] || [ "$OMR_TARGET" = "bpi-r4-poe" ] || [ "$OMR_TARGET" = "bpi-r64" ] || [ "$OMR_TARGET" = "espressobin" ] || [ "$OMR_TARGET" = "z8102ax_128m" ] || [ "$OMR_TARGET" = "z8102ax_64m" ] || [ "$OMR_TARGET" = "z8109ax_128m" ] || [ "$OMR_TARGET" = "bpi-r4" ] || [ "$OMR_TARGET" = "bpi-r4-poe" ] || [ "$OMR_TARGET" = "bpi-r3" ] || [ "$OMR_TARGET" = "bpi-r3-mini" ] || [ "$OMR_TARGET" = "espressobin" ] || [ "$OMR_TARGET" = "gl-mt2500" ] || [ "$OMR_TARGET" = "gl-mt6000" ] || [ "$OMR_TARGET" = "cudy_tr3000-v1" ] || [ "$OMR_TARGET" = "cudy_tr3000-256mb-v1" ]; then
 	OMR_REAL_TARGET="aarch64_cortex-a53"
 elif [ "$OMR_TARGET" = "x86" ]; then
 	OMR_REAL_TARGET="i386_pentium4"
@@ -152,7 +155,10 @@ fi
 if [ "$ONLY_GET_REPO" = "yes" ]; then
 	exit 0
 fi
-rm -rf "$OMR_TARGET/${OMR_KERNEL}/source/files" "$OMR_TARGET/${OMR_KERNEL}/source/tmp"
+rm -rf "$OMR_TARGET/${OMR_KERNEL}/source/files"
+if [ "$OMR_NO_FEED_UPDATE" != "yes" ]; then
+	rm -rf "$OMR_TARGET/${OMR_KERNEL}/source/tmp"
+fi
 #rm -rf "$OMR_TARGET/${OMR_KERNEL}/source/target/linux/mediatek/patches-4.14"
 #rm -rf "$OMR_TARGET/${OMR_KERNEL}/source/package/boot/uboot-mediatek"
 #rm -rf "$OMR_TARGET/${OMR_KERNEL}/source/package/boot/arm-trusted-firmware-mediatek"
@@ -288,6 +294,9 @@ else
 	CONFIG_VERSION_REPO="$OMR_REPO"
 	CONFIG_VERSION_NUMBER="${OMR_RELEASE}-${OMR_FEED_SRC}-$(git -C "$OMR_FEED" rev-parse --short HEAD)"
 	EOF
+fi
+if [ "$OMR_FLOW_OFFLOAD" = "yes" ]; then
+	echo "CONFIG_PACKAGE_kmod-nft-offload=y" >> "$OMR_TARGET/${OMR_KERNEL}/source/.config"
 fi
 #if [ "${OMR_KERNEL}" = "5.14" ]; then
 #	echo 'CONFIG_KERNEL_GIT_CLONE_URI="https://github.com/multipath-tcp/mptcp_net-next.git"' >> "$OMR_TARGET/${OMR_KERNEL}/source/.config"
@@ -444,6 +453,12 @@ if [ "$OMR_TARGET" = "bpi-r1" ]; then
 fi
 
 cd "$OMR_TARGET/${OMR_KERNEL}/source"
+
+if [ "$OMR_KERNEL" = "6.12" ]; then
+	if ! patch -Rf -N -p1 -s --dry-run < ../../../patches/netfilter-6.12-compat.patch; then
+		patch -N -p1 -s < ../../../patches/netfilter-6.12-compat.patch
+	fi
+fi
 
 #if [ "$OMR_UEFI" = "yes" ] && [ "$OMR_TARGET" = "x86_64" ]; then 
 #	echo "Checking if UEFI patch is set or not"
@@ -775,8 +790,10 @@ echo "Done"
 cd "$OMR_TARGET/${OMR_KERNEL}/source"
 echo "Update feeds index"
 cp .config .config.keep
-scripts/feeds clean
-scripts/feeds update -a
+if [ "$OMR_NO_FEED_UPDATE" != "yes" ]; then
+	scripts/feeds clean
+	scripts/feeds update -a
+fi
 
 #cd -
 #echo "Checking if fullconenat-luci patch is set or not"
@@ -787,18 +804,26 @@ scripts/feeds update -a
 #echo "Done"
 #cd "$OMR_TARGET/${OMR_KERNEL}/source"
 
-if [ "$OMR_ALL_PACKAGES" = "yes" ]; then
+if [ "$OMR_NO_FEED_UPDATE" != "yes" ] && [ "$OMR_ALL_PACKAGES" = "yes" ]; then
 	scripts/feeds install -a -d m -p packages
 	scripts/feeds install -a -d m -p luci
 fi
-if [ -n "$CUSTOM_FEED" ]; then
+if [ "$OMR_NO_FEED_UPDATE" != "yes" ] && [ -n "$CUSTOM_FEED" ]; then
 	scripts/feeds install -a -d m -p openmptcprouter
 	scripts/feeds install -a -d y -f -p ${OMR_DIST}
-else
+elif [ "$OMR_NO_FEED_UPDATE" != "yes" ]; then
 	scripts/feeds install -a -d y -f -p openmptcprouter
 fi
 cp .config.keep .config
-scripts/feeds install kmod-macremapper
+if [ "$OMR_NO_FEED_UPDATE" != "yes" ]; then
+	scripts/feeds install kmod-macremapper
+fi
+
+if [ "$OMR_KERNEL" = "6.12" ]; then
+	if ! (cd ../../../ && patch -Rf -N -p0 -s --dry-run < patches/golang-bootstrap-arm64.patch); then
+		(cd ../../../ && patch -N -p0 -s < patches/golang-bootstrap-arm64.patch)
+	fi
+fi
 echo "Done"
 
 if [ ! -f "../../../$OMR_TARGET_CONFIG" ] || [ "$NOT_SUPPORTED" = "1" ]; then
@@ -807,6 +832,7 @@ if [ ! -f "../../../$OMR_TARGET_CONFIG" ] || [ "$NOT_SUPPORTED" = "1" ]; then
 fi
 [ "$ONLY_PREPARE" = "yes" ] && exit 0
 echo "Building $OMR_DIST for the target $OMR_TARGET with kernel ${OMR_KERNEL}"
+make -C scripts/config clean conf
 make defconfig
 make IGNORE_ERRORS=m "$@"
 echo "Done"

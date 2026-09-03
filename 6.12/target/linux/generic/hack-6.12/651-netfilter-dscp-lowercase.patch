@@ -1,0 +1,20 @@
+--- a/net/netfilter/Makefile
++++ b/net/netfilter/Makefile
+@@ -170 +170 @@
+-obj-$(CONFIG_NETFILTER_XT_TARGET_DSCP) += xt_DSCP.o
++obj-$(CONFIG_NETFILTER_XT_TARGET_DSCP) += xt_dscp.o
+--- a/net/netfilter/Makefile
++++ b/net/netfilter/Makefile
+@@ -173 +173 @@
+-obj-$(CONFIG_NETFILTER_XT_TARGET_HL) += xt_HL.o
++obj-$(CONFIG_NETFILTER_XT_TARGET_HL) += xt_hl.o
+--- a/net/ipv4/netfilter/ipt_ECN.c
++++ b/net/ipv4/netfilter/ipt_ECN.c
+@@ -17 +17 @@
+-#include <linux/netfilter_ipv4/ipt_ECN.h>
++#include <linux/netfilter_ipv4/ipt_ecn.h>
+--- a/net/netfilter/Makefile
++++ b/net/netfilter/Makefile
+@@ -187 +187 @@
+-obj-$(CONFIG_NETFILTER_XT_TARGET_TCPMSS) += xt_TCPMSS.o
++obj-$(CONFIG_NETFILTER_XT_TARGET_TCPMSS) += xt_tcpmss.o
